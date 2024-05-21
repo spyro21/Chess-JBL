@@ -1,40 +1,25 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using Unity.Mathematics;
 using UnityEngine;
 
 public class UserController : MonoBehaviour
 {
-
+    private static Mutex mut = new Mutex();
     private Transform dragging = null;
+    private Vector3 prevPosition;
+    private Piece currentPiece;
     private Vector3 offset;
+
+    public ChessControl chessControl;
 
 
     // Update is called once per frame
     void Update()
-    {
-        if(Input.GetMouseButtonDown(0)) {
-            RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero);
-                                            //float.PositiveInfinity, LayerMask.GetMask("Movable"));
-
-            if(hit) {
-                dragging = hit.transform;
-                hit.transform.GetComponent<SpriteRenderer>().sortingOrder = 3;
-                offset = dragging.position - Camera.main.ScreenToWorldPoint(Input.mousePosition);
-                //offset.x = math.floor(offset.x);
-                //offset.y = math.floor(offset.y);
-            }
-        } else if (Input.GetMouseButtonUp(0)) {
-            RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero);
-            dragging.position = getClosest(dragging.position);
-            hit.transform.GetComponent<SpriteRenderer>().sortingOrder = 0;
-            dragging = null;
-        }
-
-        if(dragging != null) {
-            dragging.position = Camera.main.ScreenToWorldPoint(Input.mousePosition) + offset;
-        }
+    {   
+        handleMouseControl();
     }
     private Vector3 getClosest(Vector3 position) {
         Vector3 newVector = new Vector3(0, 0, 0);
@@ -51,4 +36,46 @@ public class UserController : MonoBehaviour
         }
         return newVector;
     }
+
+    private void handleMouseControl() {
+        RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero,
+                                            float.PositiveInfinity, LayerMask.GetMask("Movable"));
+
+        if(Input.GetMouseButtonDown(0)) {
+            Debug.Log("mouse down");
+            if(hit) {
+                dragging = hit.transform;
+
+                prevPosition = getClosest(dragging.position);
+                currentPiece = dragging.gameObject.GetComponent<Piece>();
+
+                //float over top other pieces
+                hit.transform.GetComponent<SpriteRenderer>().sortingOrder = 3;
+
+                //get offset
+                offset = dragging.position - Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            }
+        } else if (Input.GetMouseButtonUp(0)) {
+            Debug.Log("mouse up");
+            if(dragging && currentPiece) {
+                dragging.position = getClosest(dragging.position);
+                if(!chessControl.checkPosition(currentPiece, dragging.position, prevPosition)) {
+                    dragging.position = prevPosition;
+                    Debug.Log("ILLEGAL");
+                } else {
+                    chessControl.movePiece(currentPiece, dragging.position);
+                    Debug.Log("LEGAL");
+                }
+                
+                hit.transform.GetComponent<SpriteRenderer>().sortingOrder = 0;
+                dragging = null;
+            }
+        }
+
+        if(dragging != null) {
+            dragging.position = Camera.main.ScreenToWorldPoint(Input.mousePosition) + offset;
+        }
+    }
 }
+
+
